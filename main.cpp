@@ -31,6 +31,7 @@ enum TextureID {
     PLAY_BUTTON,
     SETTINGS_BUTTON,
     EXIT_BUTTON,
+    CLOUD1,
     TEXTURE_COUNT
 };
 
@@ -58,6 +59,7 @@ void load()
     textures[EXIT_BUTTON]      = LoadTexture("assets/gui/buttons/exit_button.png");
     textures[SETTINGS_BUTTON]  = LoadTexture("assets/gui/buttons/settings_button.png");
 
+    textures[CLOUD1]           = LoadTexture("assets/environment/clouds/cloud1.png");
     textures[STUMP]            = LoadTexture("assets/gui/stump.png"); // TODO - redraw this texture maybe
 }
 
@@ -98,30 +100,22 @@ float clamp(float num, float limitA, float limitB) {
 
 // animation classes
 class AnimObject {
-    private:
-        enum AnimType {
-            SCALE
-        };
-
-        AnimType type;
-
     public:
-        float currentScale;
-        float startScale;
-        float endScale;
+        float current;
+        float start;
+        float end;
         
         double startTime;
         float length;
         double timePassed;
 
-        AnimObject(float startSc, float endSc, float len) {
-            type = SCALE;
+        AnimObject(float startV, float endV, float len, float offset) {
 
-            startScale = startSc;
-            endScale = endSc;
+            start = startV;
+            end = endV;
             length = len;
 
-            startTime = GetTime();
+            startTime = GetTime() - offset;
             timePassed = 0;
         }
 };
@@ -131,74 +125,91 @@ class AnimHandler {
         std::map<int, AnimObject> playingAnims;
 
     public:
-        float scaleQuadraticInOut(int id) {
+        float quadraticInOut(int id) {
             AnimObject &anim = playingAnims.at(id);
 
-            float x = (GetTime() - anim.startTime) / anim.length;
+            float t = (GetTime() - anim.startTime) / anim.length;
+
+            float x;
+            if (t >= 1) {
+                x = 1;
+            } else {
+                x = (t < 0.5) ? t*t*2 : -1+(4-2*t)*t;
+            }
+
+            anim.timePassed = GetTime() - anim.startTime;
+
+            anim.current = anim.start + (anim.end - anim.start) * x;
+
+            return anim.start + (anim.end - anim.start) * x;
+        }
+
+        float quadraticIn(int id) {
+            AnimObject &anim = playingAnims.at(id);
             
-
-            float scale;
-            if (x >= 1) {
-                scale = 1;
-            } else {
-                scale = (x < 0.5) ? x*x*2 : -1+(4-2*x)*x;
-            }
-
-            anim.timePassed = GetTime() - anim.startTime;
-
-            anim.currentScale = anim.startScale + (anim.endScale - anim.startScale) * scale;
-
-            return anim.startScale + (anim.endScale - anim.startScale) * scale;
-        }
-
-        float scaleQuadraticIn(int id, bool reverse = false) {
-            AnimObject &anim = playingAnims.at(id);
-
-            float x = (GetTime() - anim.startTime) / anim.length;
+            float t = (GetTime() - anim.startTime) / anim.length;
 
             
-            float scale;
-            if (x >= 1) {
-                scale = 1;
+            float x;
+            if (t >= 1) {
+                x = 1;
             } else {
-                scale = x*x;
+                x = t*t;
             }
 
             anim.timePassed = GetTime() - anim.startTime;
 
-            anim.currentScale = anim.startScale + (anim.endScale - anim.startScale) * scale;
+            anim.current = anim.start + (anim.end - anim.start) * x;
 
-            return anim.startScale + (anim.endScale - anim.startScale) * scale;
+            return anim.start + (anim.end - anim.start) * x;
         }
 
-        float scaleQuadraticOut(int id) {
+        float quadraticOut(int id) {
             AnimObject &anim = playingAnims.at(id);
 
-            float x = (GetTime() - anim.startTime) / anim.length;
+            float t = (GetTime() - anim.startTime) / anim.length;
 
-
-            float scale;
-            if (x >= 1) {
-                scale = 1;
+            float x;
+            if (t >= 1) {
+                x = 1;
             } else {
-                scale = x * (2 - x);
+                x = t * (2 - t);
             }
 
             anim.timePassed = GetTime() - anim.startTime;
 
-            anim.currentScale = anim.startScale + (anim.endScale - anim.startScale) * scale;
+            anim.current = anim.start + (anim.end - anim.start) * x;
 
-            return anim.startScale + (anim.endScale - anim.startScale) * scale;
+            return anim.start + (anim.end - anim.start) * x;
         }
 
-        void createAnim(int id, float startScale, float endScale, float length) { // scale
+        float linear(int id) {
+            AnimObject &anim = playingAnims.at(id);
+
+            float t = (GetTime() - anim.startTime) / anim.length;
+
+            float x;
+            if (t >= 1) {
+                x = 1;
+            } else {
+                x = t;
+            }
+
+            anim.timePassed = GetTime() - anim.startTime;
+
+            anim.current = anim.start + (anim.end - anim.start) * x;
+
+            return anim.start + (anim.end - anim.start) * x;
+        }
+    
+        void createAnim(int id, float startV, float endV, float length, float offset = 0.0f) {
             if (playingAnims.count(id) != 1) {
-                playingAnims.insert({id, AnimObject(startScale, endScale, length)});
+                playingAnims.insert({id, AnimObject(startV, endV, length, offset)});
             } 
         }
 
-        void overrideAnim(int id, float startScale, float endScale, float length) { // override scale
-            playingAnims.at(id) = AnimObject(startScale, endScale, length);
+        void overrideAnim(int id, float startV, float endV, float length, float offset = 0.0f) {
+            playingAnims.at(id) = AnimObject(startV, endV, length, offset);
         }
 
         AnimObject getAnim(int id) {
@@ -236,7 +247,7 @@ void drawButton(int id, Texture2D texture, Vector2 buttonPos, float startScale, 
     if (isHovering && !wasHovering[id]) {
         animHandler.overrideAnim(
             id,
-            animHandler.getAnim(id).currentScale,
+            animHandler.getAnim(id).current,
             endScale,
             animLen
         );
@@ -245,13 +256,13 @@ void drawButton(int id, Texture2D texture, Vector2 buttonPos, float startScale, 
     if (!isHovering && wasHovering[id]) {
         animHandler.overrideAnim(
             id,
-            animHandler.getAnim(id).currentScale,
+            animHandler.getAnim(id).current,
             startScale,
             animLen
         );
     }
 
-    float scale = animHandler.scaleQuadraticInOut(id);
+    float scale = animHandler.quadraticInOut(id);
 
     wasHovering[id] = isHovering;
 
@@ -272,11 +283,36 @@ void handleMenu()
 {
     Vector2 scrDimensions = {GetScreenWidth(), GetScreenHeight()};
 
+    // bg
+    DrawTextureRec(textures[SKY_DAY], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE);
+
+    // clouds
+    animHandler.createAnim(4, scrDimensions.x*0.25f, scrDimensions.x*0.4f, 27);
+    
+    if (animHandler.animFinished(4)) {
+        animHandler.overrideAnim(4, animHandler.getAnim(4).end, animHandler.getAnim(4).start, 27);
+    }
+
+    DrawTextureEx(textures[CLOUD1], Vector2{animHandler.quadraticInOut(4), scrDimensions.y*0.2f}, 0, scrDimensions.x/1400.0f, WHITE);
+
+
+    animHandler.createAnim(5, scrDimensions.x*0.45f, scrDimensions.x*0.35f, 21, 3);
+    
+    if (animHandler.animFinished(5)) {
+        animHandler.overrideAnim(5, animHandler.getAnim(5).end, animHandler.getAnim(5).start, 21);
+    }
+
+    DrawTextureEx(textures[CLOUD1], Vector2{animHandler.quadraticInOut(5), scrDimensions.y*0.6f}, 0, scrDimensions.x/1400.0f, WHITE); // TODO - draw new cloud texture, make it unique
+
     // static things
-    DrawTextureRec(textures[SKY_DAY], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE); // bg
     DrawTextureEx(textures[LOGO], Vector2{scrDimensions.x*0.4f, scrDimensions.y*0.15f}, 0.0f, scrDimensions.x/10000*4, WHITE); // logo
     DrawTextureEx(textures[CONKER], Vector2{scrDimensions.x*0.6f, scrDimensions.y*0.69f}, 0.0f, scrDimensions.x/10000*7.1, WHITE); // conker
     DrawTextureEx(textures[STUMP], Vector2{scrDimensions.x*0.1f, 0}, 0.0f, scrDimensions.y/1958.0f, WHITE); // stump
+
+    
+    char *verText = "beta 0.1";
+    int size = scrDimensions.y*0.03;
+    DrawText(verText, scrDimensions.x-MeasureText(verText, size)-10, scrDimensions.y-size, size, WHITE);
 
     // buttons
     Vector2 settingsButtonPos = Vector2{scrDimensions.x*0.045f, scrDimensions.y*0.36f};
@@ -289,7 +325,6 @@ void handleMenu()
     if (hoveringTexture(textures[SETTINGS_BUTTON], settingsButtonPos, scrDimensions.x/1400.0f) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         currentLevel = SETTINGS;
     }
-
 }
 
 void handleSettings() {
