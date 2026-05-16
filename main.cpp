@@ -315,15 +315,18 @@ void handleMenu()
     DrawText(verText, scrDimensions.x-MeasureText(verText, size)-10, scrDimensions.y-size, size, WHITE);
 
     // buttons
-    Vector2 settingsButtonPos = Vector2{scrDimensions.x*0.045f, scrDimensions.y*0.36f};
 
     drawButton(1, textures[PLAY_BUTTON], Vector2{scrDimensions.x*0.073f, scrDimensions.y*0.01f}, scrDimensions.x/1300.0f, scrDimensions.x/1200.0f, 0.2f); // play
-    drawButton(2, textures[SETTINGS_BUTTON], settingsButtonPos, scrDimensions.x/1400.0f, scrDimensions.x/1300.0f, 0.2f); // settings
+    drawButton(2, textures[SETTINGS_BUTTON], Vector2{scrDimensions.x*0.045f, scrDimensions.y*0.36f}, scrDimensions.x/1400.0f, scrDimensions.x/1300.0f, 0.2f); // settings
     drawButton(3, textures[EXIT_BUTTON], Vector2{scrDimensions.x*0.083f, scrDimensions.y*0.67f}, scrDimensions.x/1250.0f, scrDimensions.x/1150.0f, 0.2f); // exit
 
     // handle button presses
-    if (hoveringTexture(textures[SETTINGS_BUTTON], settingsButtonPos, scrDimensions.x/1400.0f) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    if (hoveringTexture(textures[SETTINGS_BUTTON], Vector2{scrDimensions.x*0.045f, scrDimensions.y*0.36f}, scrDimensions.x/1400.0f) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         currentLevel = SETTINGS;
+    }
+
+    if (hoveringTexture(textures[EXIT_BUTTON], Vector2{scrDimensions.x*0.083f, scrDimensions.y*0.67f}, scrDimensions.x/1150.0f) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        currentLevel = EXIT_CONFIRMATION;
     }
 }
 
@@ -359,6 +362,9 @@ int main()
             case SETTINGS: 
                 handleSettings();
                 break;
+            case EXIT_CONFIRMATION:
+                unload();
+                CloseWindow();
             default:
                 currentLevel = MAIN_MENU;
                 handleMenu();
