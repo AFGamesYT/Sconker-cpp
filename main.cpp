@@ -9,10 +9,11 @@ enum Level {
     DNA_UPGRADES = 4,
     CLEANER_DEFENSE = 5,
     SETTINGS = 6,
-    EXIT_CONFIRMATION = 7
+    EXIT_CONFIRMATION = 7,
+    TEST = 8 // for beta, remove in release build
 };
 
-Level currentLevel = MAIN_MENU;
+Level currentLevel = TEST;
 
 enum TextureID {
     CONKER,
@@ -24,6 +25,7 @@ enum TextureID {
     TREE,
     SKY_DAY,
     SKY_NIGHT,
+    BIRD_SPRITES,
     MENU_BG,
     LOGO,
     SETTINGS_BG,
@@ -50,6 +52,8 @@ void load()
     
     textures[SKY_DAY]          = LoadTexture("assets/environment/sky/background_day.png");
     textures[SKY_NIGHT]        = LoadTexture("assets/environment/sky/background_night.png");
+
+    textures[BIRD_SPRITES]        = LoadTexture("assets/test/bird_spritesheet.png"); // test bird spritesheet
     
     textures[MENU_BG]          = LoadTexture("assets/gui/menu_background.png");
     textures[LOGO]             = LoadTexture("assets/gui/sconker_logo_no_bg.png");
@@ -60,7 +64,7 @@ void load()
     textures[SETTINGS_BUTTON]  = LoadTexture("assets/gui/buttons/settings_button.png");
 
     textures[CLOUD1]           = LoadTexture("assets/environment/clouds/cloud1.png");
-    textures[STUMP]            = LoadTexture("assets/gui/stump.png"); // TODO - redraw this texture maybe
+    textures[STUMP]            = LoadTexture("assets/gui/stump.png");
 }
 
 void unload()
@@ -101,24 +105,50 @@ float clamp(float num, float limitA, float limitB) {
 // animation classes
 class AnimObject {
     public:
+        bool isBasic = true;
+
+        // basic anim
         float current;
         float start;
         float end;
         
+        // spritesheet anim
+        int frames;
+        int frameWidth;
+        int frameHeight;
+        bool loop;
+
+        // all anims
         double startTime;
         float length;
         double timePassed;
 
-        AnimObject(float startV, float endV, float len, float offset) {
+        AnimObject(float start, float end, float length, float offset)
+        {   
+            this->start = start;
+            this->end = end;
+            this->length = length;
 
-            start = startV;
-            end = endV;
-            length = len;
+            startTime = GetTime() - offset;
+            timePassed = 0;
+        }
+
+        AnimObject(int frames, int frameWidth, int frameHeight, float length, bool loop, float offset) 
+        {
+            isBasic = false;
+
+            this->frames = frames;
+            this->frameWidth = frameWidth;
+            this->frameHeight = frameHeight;
+            this->length = length;
+            this->loop = loop;
 
             startTime = GetTime() - offset;
             timePassed = 0;
         }
 };
+
+
 
 class AnimHandler {
     private:
@@ -127,6 +157,8 @@ class AnimHandler {
     public:
         float quadraticInOut(int id) {
             AnimObject &anim = playingAnims.at(id);
+
+            if (!anim.isBasic) return 0.0f;
 
             float t = (GetTime() - anim.startTime) / anim.length;
 
@@ -147,6 +179,8 @@ class AnimHandler {
         float quadraticIn(int id) {
             AnimObject &anim = playingAnims.at(id);
             
+            if (!anim.isBasic) return 0.0f;
+
             float t = (GetTime() - anim.startTime) / anim.length;
 
             
@@ -167,6 +201,8 @@ class AnimHandler {
         float quadraticOut(int id) {
             AnimObject &anim = playingAnims.at(id);
 
+            if (!anim.isBasic) return 0.0f;
+
             float t = (GetTime() - anim.startTime) / anim.length;
 
             float x;
@@ -186,6 +222,8 @@ class AnimHandler {
         float linear(int id) {
             AnimObject &anim = playingAnims.at(id);
 
+            if (!anim.isBasic) return 0.0f;
+
             float t = (GetTime() - anim.startTime) / anim.length;
 
             float x;
@@ -201,10 +239,34 @@ class AnimHandler {
 
             return anim.start + (anim.end - anim.start) * x;
         }
-    
-        void createAnim(int id, float startV, float endV, float length, float offset = 0.0f) {
+        
+        Rectangle spriteAnim(int id) {
+            AnimObject &anim = playingAnims.at(id);
+
+            if (!anim.isBasic) {
+                float t = (GetTime() - anim.startTime) / anim.length;
+                
+                if (t >= 1) {
+                    t = (anim.loop) ? std::fmod(t, 1) : 1;
+                }
+
+                int i = t*anim.frames;
+
+                anim.timePassed = GetTime() - anim.startTime;
+
+                return Rectangle{(float)i*anim.frameWidth, 0, (float)anim.frameWidth, (float)anim.frameHeight};
+            }
+        }
+
+        void createAnim(int id, float startV, float endV, float length, float offset = 0.0f) { // create a basic anim | quadratic, linear
             if (playingAnims.count(id) != 1) {
                 playingAnims.insert({id, AnimObject(startV, endV, length, offset)});
+            } 
+        }
+
+        void createSpriteAnim(int id, int frameAmount, int frameW, int frameH, float length, bool loop = false, float offset = 0.0f) { // create a spritesheet anim | spriteAnim()
+            if (playingAnims.count(id) != 1) {
+                playingAnims.insert({id, AnimObject(frameAmount, frameW, frameH, length, loop, offset)});
             } 
         }
 
@@ -284,7 +346,7 @@ void handleMenu()
     Vector2 scrDimensions = {GetScreenWidth(), GetScreenHeight()};
 
     // bg
-    DrawTextureRec(textures[SKY_DAY], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE);
+    DrawTextureRec(textures[SKY_DAY], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE); // TODO - replace DrawTextureRec with something more reasonable
 
     // clouds
     animHandler.createAnim(4, scrDimensions.x*0.25f, scrDimensions.x*0.4f, 27);
@@ -294,7 +356,6 @@ void handleMenu()
     }
 
     DrawTextureEx(textures[CLOUD1], Vector2{animHandler.quadraticInOut(4), scrDimensions.y*0.2f}, 0, scrDimensions.x/1400.0f, WHITE);
-
 
     animHandler.createAnim(5, scrDimensions.x*0.45f, scrDimensions.x*0.35f, 21, 3);
     
@@ -333,9 +394,21 @@ void handleMenu()
 void handleSettings() {
     Vector2 scrDimensions = {GetScreenWidth(), GetScreenHeight()};
 
-    DrawTextureRec(textures[SETTINGS_BG], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE); // bg
+    DrawTextureRec(textures[SETTINGS_BG], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE); // TODO - replace DrawTextureRec with something more reasonable
 }
 
+
+void handleTest() {
+    Vector2 scrDimensions = {GetScreenWidth(), GetScreenHeight()};
+
+    DrawTextureRec(textures[SKY_DAY], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE);
+
+    animHandler.createSpriteAnim(6, 8, 1000, 1000, 1, true);
+
+    Rectangle rec = animHandler.spriteAnim(6);
+
+    DrawTextureRec(textures[BIRD_SPRITES], rec, Vector2{0, 0}, WHITE);
+}
 
 int main()
 {   
@@ -345,14 +418,18 @@ int main()
     const int screenHeight = 1080;
     const int fps = 144; 
 
+    bool running = true;
+
     SetTargetFPS(fps);
 
-    SetConfigFlags(FLAG_VSYNC_HINT); // enable vsync
+    SetConfigFlags(FLAG_VSYNC_HINT); // enables vsync
     InitWindow(screenWidth, screenHeight, "Sconker");
 
     load();
 
-    while (!WindowShouldClose()) {
+    SetExitKey(KEY_NULL);
+
+    while (!WindowShouldClose() && running) {
         BeginDrawing();
 
         switch (currentLevel) {
@@ -363,8 +440,10 @@ int main()
                 handleSettings();
                 break;
             case EXIT_CONFIRMATION:
-                unload();
-                CloseWindow();
+                running = false;
+            case TEST:
+                handleTest();
+                break;
             default:
                 currentLevel = MAIN_MENU;
                 handleMenu();
