@@ -13,7 +13,7 @@ enum Level {
     TEST = 8 // for beta, remove in release build
 };
 
-Level currentLevel = TEST;
+Level currentLevel = MAIN_MENU;
 
 enum TextureID {
     CONKER,
@@ -25,7 +25,7 @@ enum TextureID {
     TREE,
     SKY_DAY,
     SKY_NIGHT,
-    BIRD_SPRITES,
+    CONKER_BREAK_SPRITES,
     MENU_BG,
     LOGO,
     SETTINGS_BG,
@@ -53,7 +53,7 @@ void load()
     textures[SKY_DAY]          = LoadTexture("assets/environment/sky/background_day.png");
     textures[SKY_NIGHT]        = LoadTexture("assets/environment/sky/background_night.png");
 
-    textures[BIRD_SPRITES]        = LoadTexture("assets/test/bird_spritesheet.png"); // test bird spritesheet
+    textures[CONKER_BREAK_SPRITES] = LoadTexture("assets/conker/break_spritesheet.png");
     
     textures[MENU_BG]          = LoadTexture("assets/gui/menu_background.png");
     textures[LOGO]             = LoadTexture("assets/gui/sconker_logo_no_bg.png");
@@ -246,11 +246,14 @@ class AnimHandler {
             if (!anim.isBasic) {
                 float t = (GetTime() - anim.startTime) / anim.length;
                 
-                if (t >= 1) {
-                    t = (anim.loop) ? std::fmod(t, 1) : 1;
-                }
-
                 int i = t*anim.frames;
+                if (t >= 1) {
+                    if (anim.loop) {
+                        t = std::fmod(t, 1);
+                    } else {
+                        i = anim.frames - 1;
+                    }
+                }
 
                 anim.timePassed = GetTime() - anim.startTime;
 
@@ -403,11 +406,11 @@ void handleTest() {
 
     DrawTextureRec(textures[SKY_DAY], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE);
 
-    animHandler.createSpriteAnim(6, 8, 1000, 1000, 1, true);
+    animHandler.createSpriteAnim(6, 12, 500, 500, 1.5);
 
     Rectangle rec = animHandler.spriteAnim(6);
 
-    DrawTextureRec(textures[BIRD_SPRITES], rec, Vector2{0, 0}, WHITE);
+    DrawTextureRec(textures[CONKER_BREAK_SPRITES], rec, Vector2{0, 0}, WHITE);
 }
 
 int main()
