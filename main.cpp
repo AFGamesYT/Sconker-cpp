@@ -2,23 +2,34 @@
 #include <bits/stdc++.h>
 
 enum Level {
-    MAIN_MENU = 0,
-    LOAD_CONTINUE_GAME = 1,
-    GAME = 2,
-    PAUSED_GAME = 3,
-    DNA_UPGRADES = 4,
-    CLEANER_DEFENSE = 5,
-    SETTINGS = 6,
-    EXIT_CONFIRMATION = 7,
-    TEST = 8 // for beta, remove in release build
+    MAIN_MENU,
+    SAVE_POPUP,
+    GAME,
+    PAUSED_GAME,
+    SETTINGS,
+    EXIT_CONFIRMATION,
+    TEST // for beta, remove in release build
 };
 
+Level lastFrameLevel = MAIN_MENU;
 Level currentLevel = MAIN_MENU;
+
+enum TimeOfDay {
+    SUNRISE,
+    DAYTIME,
+    SUNSET,
+    NIGHTTIME
+};
+
+enum Season {
+    SUMMER,
+    AUTUMN,
+    WINTER,
+    SPRING
+};
 
 enum TextureID {
     CONKER,
-    CONKER_LEFT,
-    CONKER_RIGHT,
     SHADOW,
     GROUND,
     SUN,
@@ -42,12 +53,10 @@ Texture2D textures[TEXTURE_COUNT];
 void load()
 {
     textures[CONKER]           = LoadTexture("assets/conker/conker.png");
-    textures[CONKER_LEFT]      = LoadTexture("assets/conker/conker_left.png");
-    textures[CONKER_RIGHT]     = LoadTexture("assets/conker/conker_right.png");
     textures[SHADOW]           = LoadTexture("assets/conker/shadow.png");
     
     textures[GROUND]           = LoadTexture("assets/environment/ground.png");
-    textures[SUN]              = LoadTexture("assets/environment/sun.png"); // TODO - redraw this texture
+    textures[SUN]              = LoadTexture("assets/environment/sun.png"); 
     textures[TREE]             = LoadTexture("assets/environment/tree.png");
     
     textures[SKY_DAY]          = LoadTexture("assets/environment/sky/background_day.png");
@@ -66,6 +75,13 @@ void load()
     textures[CLOUD1]           = LoadTexture("assets/environment/clouds/cloud1.png");
     textures[STUMP]            = LoadTexture("assets/gui/stump.png");
 }
+
+// TODO - redraw following textures:
+// GROUND, TREE, SUN, SKY_DAY, SKY_NIGHT
+
+// TODO - draw following textures:
+// FARMER_CHARACTER, DAY_SKY_OVERLAY, NIGHT_SKY_OVERLAY, DNA
+
 
 void unload()
 {
@@ -149,11 +165,10 @@ class AnimObject {
 };
 
 
-
 class AnimHandler {
     private:
         std::map<int, AnimObject> playingAnims;
-
+ 
     public:
         float quadraticInOut(int id) {
             AnimObject &anim = playingAnims.at(id);
@@ -342,14 +357,14 @@ void drawButton(int id, Texture2D texture, Vector2 buttonPos, float startScale, 
         WHITE
     );
 }
+
 // draw levels
 
-void handleMenu()
-{
+void handleMenu() {
     Vector2 scrDimensions = {GetScreenWidth(), GetScreenHeight()};
 
     // bg
-    DrawTextureRec(textures[SKY_DAY], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE); // TODO - replace DrawTextureRec with something more reasonable
+    DrawTextureRec(textures[SKY_DAY], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE);
 
     // clouds
     animHandler.createAnim(4, scrDimensions.x*0.25f, scrDimensions.x*0.4f, 27);
@@ -385,6 +400,10 @@ void handleMenu()
     drawButton(3, textures[EXIT_BUTTON], Vector2{scrDimensions.x*0.083f, scrDimensions.y*0.67f}, scrDimensions.x/1250.0f, scrDimensions.x/1150.0f, 0.2f); // exit
 
     // handle button presses
+    if (hoveringTexture(textures[PLAY_BUTTON], Vector2{scrDimensions.x*0.073f, scrDimensions.y*0.01f}, scrDimensions.x/1200.0f) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        currentLevel = GAME;
+    }
+
     if (hoveringTexture(textures[SETTINGS_BUTTON], Vector2{scrDimensions.x*0.045f, scrDimensions.y*0.36f}, scrDimensions.x/1400.0f) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         currentLevel = SETTINGS;
     }
@@ -394,36 +413,164 @@ void handleMenu()
     }
 }
 
-void handleSettings() {
+void handleSettings() { // placeholder for now
     Vector2 scrDimensions = {GetScreenWidth(), GetScreenHeight()};
 
-    DrawTextureRec(textures[SETTINGS_BG], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE); // TODO - replace DrawTextureRec with something more reasonable
+    DrawTextureRec(textures[SETTINGS_BG], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE);
 }
 
-
-void handleTest() {
+void handleTest() { // remove in release
     Vector2 scrDimensions = {GetScreenWidth(), GetScreenHeight()};
 
     DrawTextureRec(textures[SKY_DAY], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE);
 
-    animHandler.createSpriteAnim(6, 12, 500, 500, 1.5);
+    animHandler.createSpriteAnim(6, 12, 500, 500, 1.5, true);
 
     Rectangle rec = animHandler.spriteAnim(6);
 
     DrawTextureRec(textures[CONKER_BREAK_SPRITES], rec, Vector2{0, 0}, WHITE);
 }
 
+
+void handleGame() {
+    /*
+    game updates happen 20 times every seconds, so ups = 20 (updates per second)
+    visual, input updates happen every frame
+    */
+
+    static double accumulator;
+
+    static int totalUpdates; // get from save file
+
+    const float tickTime = 0.05f; // 1/20 = 0.05
+    float frameTime = GetFrameTime();
+
+    static Season currentSeason = SUMMER; // based on the time gotten from the save file
+    static TimeOfDay currentTimeOfDay = DAYTIME;
+
+    Vector2 scrDimensions = {GetScreenWidth(), GetScreenHeight()};
+
+
+    accumulator += frameTime;
+
+    if (accumulator >= tickTime) {
+        // ------------------------------
+        // |       GAME UPDATES         |
+        // ------------------------------
+        
+        // 10 minutes  = 1 day ( 1 - sunrise / 4 - day / 1 - sunset / 4 - night )
+        // 0-1 = sunrise | 1-5 = day | 5-6 = sunset | 6-10 = night
+
+        // 1 season    = 7 days
+        // 1 year      = 28 days
+
+        int yearTime = totalUpdates % (28*10*60*20); // 28 days * 10 minutes * 60 seconds * 20 updates | num range = [ 0, 336000 )
+        int dayTime =  totalUpdates % (10*60*20);    // 1 day   * 10 minutes * 60 seconds * 20 updates | num range = [ 0, 12000  )
+
+        if (dayTime <= 60*20) {   
+
+            if (currentTimeOfDay != SUNRISE) {
+                currentTimeOfDay = SUNRISE;
+            }
+
+        } else if (dayTime <= 5*60*20) { 
+
+            if (currentTimeOfDay != DAYTIME) {
+                currentTimeOfDay = DAYTIME;
+            }
+
+        } else if (dayTime <= 6*60*20) {
+
+            if (currentTimeOfDay != SUNSET) {
+                currentTimeOfDay = SUNSET;
+            }
+
+        } else {
+
+            if (currentTimeOfDay != NIGHTTIME) {
+                currentTimeOfDay = NIGHTTIME;
+            }
+
+        }   
+
+
+        if (yearTime <= 7*10*60*20) { // summer [0, 84000]
+
+            if (currentSeason != SUMMER) {
+                currentSeason = SUMMER;
+            }
+
+        } else if (yearTime <= 14*10*60*20) { // autumn 
+
+            if (currentSeason != AUTUMN) {
+                currentSeason = AUTUMN;
+            }
+
+        } else if (yearTime <= 21*10*60*20) { // winter
+
+            if (currentSeason != WINTER) {
+                currentSeason = WINTER;
+            }
+
+        } else { // spring
+
+            if (currentSeason != SPRING) {
+                currentSeason = SPRING;
+            }
+
+        }
+        
+        TraceLog(LOG_DEBUG, std::to_string(dayTime).c_str());
+
+        totalUpdates += 1; // 2x, 3x speed mode/upgrade ?
+        accumulator -= tickTime;
+    }
+
+    // ------------------------------
+    // |       INPUT UPDATE        |
+    // ------------------------------
+
+
+
+    // ------------------------------
+    // |       VISUAL UPDATE        |
+    // ------------------------------
+    
+    switch (currentTimeOfDay) {
+        case DAYTIME:
+            DrawTextureRec(textures[SKY_DAY], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE);
+            break;
+        
+        case NIGHTTIME:
+            DrawTextureRec(textures[SKY_NIGHT], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE);
+            break;
+        
+        case SUNSET:
+            DrawTextureRec(textures[SKY_NIGHT], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE);
+            DrawTexture(textures[CONKER], 0, 0, WHITE); // placeholder to identify it changed
+            break;
+        
+        case SUNRISE:
+            DrawTextureRec(textures[SKY_NIGHT], Rectangle{0, 0, scrDimensions.x, scrDimensions.y}, Vector2{0, 0}, WHITE);
+            DrawTexture(textures[CLOUD1], 0, 0, WHITE); // placeholder to identify it changed
+            break;
+
+        default:
+            break;
+        }
+
+    
+}
+
 int main()
 {   
-    // CONSTS
-
     const int screenWidth = 1920;
     const int screenHeight = 1080;
-    const int fps = 144; 
 
     bool running = true;
 
-    SetTargetFPS(fps);
+    SetTargetFPS(0); // uncap fps
+    SetTraceLogLevel(LOG_ALL);
 
     SetConfigFlags(FLAG_VSYNC_HINT); // enables vsync
     InitWindow(screenWidth, screenHeight, "Sconker");
@@ -439,20 +586,29 @@ int main()
             case MAIN_MENU: 
                 handleMenu();
                 break;
+
+            case GAME:
+                handleGame();
+                break;
+
             case SETTINGS: 
                 handleSettings();
                 break;
+
             case EXIT_CONFIRMATION:
-                running = false;
+                running = false; // TODO - make this an actual exit confirmation
+
             case TEST:
                 handleTest();
                 break;
+
             default:
                 currentLevel = MAIN_MENU;
                 handleMenu();
         }
-
+    
         EndDrawing();
+        lastFrameLevel = currentLevel;
     }
 
     unload();
