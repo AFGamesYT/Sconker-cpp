@@ -1,4 +1,8 @@
-<img width="1463" height="525" alt="sconker_logo_no_bg" src="https://github.com/user-attachments/assets/085b67a9-56fc-428f-84e0-c89b4a9dcdee" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/7fdeab96-0118-49b8-8006-9205986c209e">
+  <source media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/2c51cd8e-6a61-44cc-b5bd-66a7a0c6a782">
+  <img alt="Sconker" src="default-image.png">
+</picture>
 
 <h1 align="center">An incremental about conkers!</h1>
 
